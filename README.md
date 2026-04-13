@@ -1,140 +1,141 @@
 # MiniOtter
 
-基于 GUI 的自动化 Agent 桌面应用，可以在 macOS 上通过截图理解屏幕内容，使用鼠标和键盘操作桌面应用程序完成用户任务。
+A GUI-based automation agent desktop application for macOS. It understands screen content via screenshots, and operates desktop applications using mouse and keyboard to complete user tasks.
 
-一键启动，内置前后端，直接打开桌面窗口即可使用。
+One-click launch — built-in frontend and backend, opens a native desktop window directly.
 
-## 架构
+> [中文文档](README_zh.md)
+
+## Architecture
 
 ```
-用户输入任务
+User Input
     ↓
 ┌─────────────┐
-│  主 Agent    │  分析任务，路由到子 Agent
+│  Main Agent │  Analyzes task, routes to sub-agents
 └──────┬──────┘
        ├──────────────────┐
        ↓                  ↓
 ┌─────────────┐    ┌─────────────┐
-│  GUI Agent  │    │  文本 Agent  │
-│  截图+a11y  │    │  bash+文件   │
-│  鼠标+键盘  │    │  剪贴板      │
+│  GUI Agent  │    │  Text Agent │
+│ screenshot  │    │  bash/files │
+│ mouse+kbd   │    │  clipboard  │
 └─────────────┘    └─────────────┘
 ```
 
-- **主 Agent** — 只负责任务分发，判断任务交给哪个子 Agent
-- **GUI Agent** — 基于截图和 a11y tree，执行鼠标键盘操作（需要多模态 LLM）
-- **文本 Agent** — 执行 bash 命令、读写文件等文本任务
-- **扩展 Agent** — 预留可扩展
+- **Main Agent** — routes tasks only, decides which sub-agent handles the work
+- **GUI Agent** — uses screenshots and accessibility tree to execute mouse/keyboard actions (requires multimodal LLM)
+- **Text Agent** — runs bash commands, reads/writes files
+- **Extension Agent** — reserved for future use
 
-每个 Agent 都有独立的 ReAct Loop，互不影响。
+Each agent has an independent ReAct loop.
 
-## 技术栈
+## Tech Stack
 
-| 层 | 技术 |
-|---|---|
-| 桌面窗口 | pywebview（原生 WebKit 窗口） |
-| 前端 | React 18 + TypeScript + Vite + Zustand |
-| 后端 | Python + FastAPI + WebSocket |
-| Agent 引擎 | 自定义 ReAct Loop |
-| LLM | Claude / OpenAI（可配置） |
-| macOS 平台 | screencapture + pyobjc (a11y) + pyautogui (输入) |
+| Layer | Technology |
+|-------|------------|
+| Desktop window | pywebview (native WebKit window) |
+| Frontend | React 18 + TypeScript + Vite + Zustand |
+| Backend | Python + FastAPI + WebSocket |
+| Agent engine | Custom ReAct Loop |
+| LLM | Claude / OpenAI (configurable) |
+| macOS platform | screencapture + pyobjc (a11y) + pyautogui (input) |
 
-## LLM 配置
+## LLM Configuration
 
-项目使用两套独立的 LLM：
+The project uses two independent LLMs:
 
-| LLM | 用途 | 要求 |
-|-----|------|------|
-| 文本 LLM | 主 Agent 任务路由 + 文本 Agent | 普通文本模型即可 |
-| 视觉 LLM | GUI Agent 看截图操作桌面 | 需要多模态（支持图片输入） |
+| LLM | Purpose | Requirement |
+|-----|---------|-------------|
+| Text LLM | Main Agent routing + Text Agent | Any text model |
+| Vision LLM | GUI Agent — reads screenshots to operate desktop | Must support image input (multimodal) |
 
-API Key 通过应用内 Settings 页面配置，持久化存储在项目根目录 `.api_env` 文件中（已加入 .gitignore）。
+API keys are configured via the in-app Settings page and persisted to `.api_env` in the project root (already in `.gitignore`).
 
-## 快速开始
+## Quick Start
 
-### 前置条件
+### Prerequisites
 
 - macOS
 - Python >= 3.11
 - Node.js >= 18
-- [uv](https://docs.astral.sh/uv/)（Python 包管理）
+- [uv](https://docs.astral.sh/uv/) (Python package manager)
 
 ```bash
-# 安装 uv（如果没有）
+# Install uv (if not already installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-### 安装 + 构建 + 启动
+### Install + Build + Run
 
 ```bash
-# 1. 安装依赖
+# 1. Install dependencies
 make install
 
-# 2. 构建前端
+# 2. Build frontend
 make build
 
-# 3. 启动桌面应用
+# 3. Launch desktop app
 make start
 ```
 
-或手动执行：
+Or manually:
 
 ```bash
-uv sync                              # 安装 Python 依赖
-cd frontend && npm install && npm run build  # 构建前端
-cd backend && uv run python -m miniotter     # 启动桌面应用
+uv sync                                          # Install Python dependencies
+cd frontend && npm install && npm run build      # Build frontend
+cd backend && uv run python -m miniotter         # Launch desktop app
 ```
 
-启动后会自动打开桌面窗口，在 Settings 页面配置 LLM API Key 即可使用。
+After launch, a native window opens automatically. Configure your LLM API keys in the Settings page.
 
-### 启动模式
+### Launch Modes
 
 ```bash
-# 桌面应用（默认）— 打开原生窗口
+# Desktop app (default) — opens native window
 cd backend && uv run python -m miniotter
 
-# 仅后端 — 不打开窗口，浏览器访问 http://127.0.0.1:8000
+# Server only — no window, access via browser at http://127.0.0.1:8000
 cd backend && uv run python -m miniotter --server
 
-# 开发模式 — 后端 + 前端热更新（分别在两个终端执行）
-make dev-backend     # 终端 1
-make dev-frontend    # 终端 2
+# Dev mode — backend + frontend hot reload (run in two terminals)
+make dev-backend     # Terminal 1
+make dev-frontend    # Terminal 2
 ```
 
-### macOS 权限
+### macOS Permissions
 
-GUI Agent 需要以下系统权限：
+The GUI Agent requires the following system permissions:
 
-- **辅助功能** — 系统设置 > 隐私与安全性 > 辅助功能
-- **屏幕录制** — 系统设置 > 隐私与安全性 > 屏幕录制
+- **Accessibility** — System Settings > Privacy & Security > Accessibility
+- **Screen Recording** — System Settings > Privacy & Security > Screen Recording
 
-## 项目结构
+## Project Structure
 
 ```
 MiniOtter/
 ├── backend/miniotter/
-│   ├── __main__.py      # 入口：桌面窗口(pywebview) + 后台服务(FastAPI)
-│   ├── agents/          # 4 个 Agent（main/gui/text/extension）
-│   ├── react/           # ReAct Loop 引擎
-│   ├── tools/           # 工具定义（gui: 鼠标键盘截图a11y / text: bash文件剪贴板）
-│   ├── llm/             # LLM 提供者抽象（Claude / OpenAI）
-│   ├── macos/           # macOS 平台层（截图/a11y/输入控制/权限）
-│   ├── prompts/         # 中文系统提示词
-│   ├── app/             # FastAPI 服务 + WebSocket + REST API + 静态文件
-│   └── static/          # 前端构建产物（构建时自动生成）
+│   ├── __main__.py      # Entry: pywebview desktop window + background FastAPI server
+│   ├── agents/          # 4 agents (main / gui / text / extension)
+│   ├── react/           # ReAct Loop engine
+│   ├── tools/           # Tool definitions (gui: mouse/keyboard/screenshot/a11y · text: bash/file/clipboard)
+│   ├── llm/             # LLM provider abstraction (Claude / OpenAI)
+│   ├── macos/           # macOS platform layer (screenshot / a11y / input / permissions)
+│   ├── prompts/         # System prompts (Chinese)
+│   └── app/             # FastAPI server + WebSocket + REST API + static files
 ├── frontend/src/
-│   ├── pages/Chat/      # 对话页面（消息列表 + ReAct 步骤卡片 + 截图标注）
-│   ├── pages/Settings/  # 设置页面（文本LLM + 视觉LLM 分开配置）
-│   ├── stores/          # Zustand 状态管理
-│   └── hooks/           # WebSocket + 自动滚动
-├── docs/architecture.md # 完整技术方案
-└── pyproject.toml       # uv 项目配置
+│   ├── pages/Chat/      # Chat page (message list + ReAct step cards + screenshot annotations)
+│   ├── pages/Settings/  # Settings page (Text LLM + Vision LLM configured separately)
+│   ├── stores/          # Zustand state management
+│   └── hooks/           # WebSocket + auto-scroll
+├── docs/architecture.md # Full technical design
+└── pyproject.toml       # uv project config
 ```
 
-## 添加依赖
+## Adding Dependencies
 
 ```bash
-uv add requests           # 运行时依赖（自动写入 pyproject.toml）
-uv add --dev pytest-cov   # 开发依赖
-uv remove requests        # 移除
+uv add requests           # Runtime dependency (auto-updates pyproject.toml)
+uv add --dev pytest-cov   # Dev dependency
+uv remove requests        # Remove
 ```
