@@ -1,0 +1,35 @@
+# MiniOtter 默认配置
+# API Key 通过前端页面配置，持久化到项目根目录 .api_env 文件
+
+server:
+  host: "127.0.0.1"
+  port: 8000
+  cors_origins: ["http://localhost:5173"]
+
+llm:
+  # 文本LLM - 用于主Agent和文本Agent（深度思考、命令执行等）
+  text:
+    provider: "openai"
+    model: "gpt-4o"
+    max_tokens: 4096
+    temperature: 0.0
+
+  # 视觉LLM - 用于GUI Agent（需要多模态能力，看截图操作桌面）
+  vision:
+    provider: "claude"
+    model: "claude-sonnet-4-20250514"
+    max_tokens: 4096
+    temperature: 0.0
+
+agents:
+  main:
+    max_steps: 10
+  gui:
+    max_steps: 30
+    screenshot_max_width: 1280
+    screenshot_max_height: 800
+    include_accessibility_tree: true
+    a11y_max_depth: 5
+  text:
+    max_steps: 20
+    bash_timeout: 30

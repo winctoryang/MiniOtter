@@ -1,0 +1,38 @@
+# Claude Code
+.claude/
+
+# API keys
+.api_env
+.env
+.env.*
+
+# Python 虚拟环境
+.venv/
+.env_python*/
+venv/
+env/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# uv
+uv.lock
+
+# Node
+node_modules/
+frontend/dist/
+
+# 前端构建产物（构建时生成到后端目录）
+backend/miniotter/static/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# macOS
+.DS_Store
