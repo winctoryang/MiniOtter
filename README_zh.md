@@ -114,12 +114,18 @@ GUI Agent 需要以下系统权限：
 MiniOtter/
 ├── backend/miniotter/
 │   ├── __main__.py      # 入口：桌面窗口(pywebview) + 后台服务(FastAPI)
-│   ├── agents/          # 4 个 Agent（main/gui/text/extension）
+│   ├── agents/          # 4 个 Agent — 每个文件包含 Agent 类 + 工具 + 系统提示词
+│   │   ├── base.py      #   BaseAgent + LLM 提供者工厂
+│   │   ├── gui_agent.py #   GUI Agent + 鼠标键盘截图a11y 工具
+│   │   ├── text_agent.py#   文本 Agent + bash 文件 剪贴板 工具
+│   │   ├── main_agent.py#   主 Agent（路由） + RouteToAgent 工具
+│   │   └── extension_agent.py
 │   ├── react/           # ReAct Loop 引擎
-│   ├── tools/           # 工具定义（gui: 鼠标键盘截图a11y / text: bash文件剪贴板）
+│   │   ├── engine.py    #   ReActLoop + 步骤历史（核心循环）
+│   │   └── types.py     #   Thought / Action / Observation / ReActStep / TaskResult
+│   ├── tools/base.py    # BaseTool + TaskComplete + TaskFailed
 │   ├── llm/             # LLM 提供者抽象（Claude / OpenAI）
-│   ├── macos/           # macOS 平台层（截图/a11y/输入控制/权限）
-│   ├── prompts/         # 中文系统提示词
+│   ├── macos/           # macOS 平台层（截图 / a11y / 输入控制）
 │   ├── app/             # FastAPI 服务 + WebSocket + REST API + 静态文件
 │   └── static/          # 前端构建产物（构建时自动生成）
 ├── frontend/src/

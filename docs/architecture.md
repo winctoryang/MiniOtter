@@ -41,7 +41,6 @@ MiniOtter/
 ├── .env.example                       # Environment variable template
 │
 ├── backend/                           # Python backend
-│   ├── pyproject.toml                 # Backend-specific deps (or use root)
 │   ├── miniotter/
 │   │   ├── __init__.py
 │   │   ├── __main__.py                # python -m miniotter entry point
@@ -51,72 +50,44 @@ MiniOtter/
 │   │   │
 │   │   ├── app/                       # FastAPI application layer
 │   │   │   ├── __init__.py
-│   │   │   ├── server.py              # FastAPI app factory, lifespan
+│   │   │   ├── server.py              # FastAPI app factory + WebSocket /ws/stream
 │   │   │   ├── routes/
 │   │   │   │   ├── __init__.py
 │   │   │   │   ├── chat.py            # POST /api/chat  (new task)
 │   │   │   │   ├── tasks.py           # GET /api/tasks, GET /api/tasks/{id}
 │   │   │   │   ├── config.py          # GET/PUT /api/config
 │   │   │   │   └── health.py          # GET /api/health
-│   │   │   ├── ws.py                  # WebSocket /ws/stream  (real-time)
 │   │   │   ├── schemas.py             # Pydantic request/response models
 │   │   │   └── deps.py                # Dependency injection helpers
 │   │   │
 │   │   ├── agents/                    # Agent implementations
-│   │   │   ├── __init__.py
-│   │   │   ├── base.py                # BaseAgent with ReAct loop
-│   │   │   ├── main_agent.py          # MainAgent (router)
-│   │   │   ├── gui_agent.py           # GUIAgent (screenshot + a11y + control)
-│   │   │   ├── text_agent.py          # TextAgent (bash, file ops)
-│   │   │   ├── extension_agent.py     # ExtensionAgent (future)
+│   │   │   ├── __init__.py            # Each file = agent class + its tools + system prompt
+│   │   │   ├── base.py                # BaseAgent + LLM provider factory (_create_llm)
+│   │   │   ├── main_agent.py          # MainAgent + RouteToAgent tool + system prompt
+│   │   │   ├── gui_agent.py           # GUIAgent + all GUI tools + a11y logic + system prompt
+│   │   │   ├── text_agent.py          # TextAgent + all text tools + system prompt
+│   │   │   ├── extension_agent.py     # ExtensionAgent + system prompt
 │   │   │   └── registry.py            # Agent registry / factory
 │   │   │
 │   │   ├── react/                     # ReAct loop engine
 │   │   │   ├── __init__.py
-│   │   │   ├── loop.py                # Core ReAct loop implementation
-│   │   │   ├── types.py               # Thought, Action, Observation types
-│   │   │   └── history.py             # Conversation/step history manager
+│   │   │   ├── engine.py              # ReActLoop + _StepHistory (merged loop + history)
+│   │   │   └── types.py               # Thought, Action, Observation, ReActStep, TaskResult
 │   │   │
-│   │   ├── tools/                     # Tool definitions
-│   │   │   ├── __init__.py
-│   │   │   ├── base.py                # BaseTool abstract class
-│   │   │   ├── registry.py            # Tool registry
-│   │   │   ├── gui/                   # GUI tools
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── mouse.py           # click, double_click, right_click, drag, scroll, move
-│   │   │   │   ├── keyboard.py        # type_text, press_key, hotkey
-│   │   │   │   ├── screenshot.py      # take_screenshot
-│   │   │   │   └── accessibility.py   # get_accessibility_tree
-│   │   │   ├── text/                  # Text tools
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── bash.py            # execute_bash
-│   │   │   │   ├── file_ops.py        # read_file, write_file, list_dir
-│   │   │   │   └── clipboard.py       # get_clipboard, set_clipboard
-│   │   │   └── common/                # Shared tools
-│   │   │       ├── __init__.py
-│   │   │       └── finish.py          # task_complete, task_failed
+│   │   ├── tools/
+│   │   │   └── base.py                # BaseTool + ToolParameter + TaskComplete + TaskFailed
 │   │   │
 │   │   ├── llm/                       # LLM provider abstraction
 │   │   │   ├── __init__.py
 │   │   │   ├── base.py                # BaseLLMProvider interface
-│   │   │   ├── provider_factory.py    # Factory from config
 │   │   │   ├── claude_provider.py     # Anthropic Claude
 │   │   │   ├── openai_provider.py     # OpenAI / compatible
-│   │   │   └── types.py              # LLMMessage, LLMResponse, ToolCall
+│   │   │   └── types.py               # LLMMessage, LLMResponse, ToolCall
 │   │   │
-│   │   ├── macos/                     # macOS platform layer
-│   │   │   ├── __init__.py
-│   │   │   ├── screenshot.py          # screencapture wrapper
-│   │   │   ├── accessibility.py       # pyobjc AXUIElement tree
-│   │   │   ├── input_control.py       # pyautogui / Quartz mouse/keyboard
-│   │   │   └── permissions.py         # Check accessibility permissions
-│   │   │
-│   │   └── prompts/                   # Chinese system prompts
+│   │   └── macos/                     # macOS platform layer
 │   │       ├── __init__.py
-│   │       ├── main_agent.py          # 主Agent系统提示词
-│   │       ├── gui_agent.py           # GUI Agent系统提示词
-│   │       ├── text_agent.py          # 文本Agent系统提示词
-│   │       └── extension_agent.py     # 扩展Agent系统提示词
+│   │       ├── screenshot.py          # screencapture wrapper
+│   │       └── input_control.py       # pyautogui mouse/keyboard
 │   │
 │   ├── config/
 │   │   └── default_config.yaml        # Default configuration
@@ -124,7 +95,6 @@ MiniOtter/
 │       ├── __init__.py
 │       ├── test_react_loop.py
 │       ├── test_agents.py
-│       ├── test_tools.py
 │       └── test_llm_providers.py
 │
 ├── frontend/                          # React frontend
@@ -236,7 +206,7 @@ class TaskResult:
     steps: list[ReActStep]
 ```
 
-**Core Loop** (`react/loop.py`):
+**Core Loop** (`react/engine.py`):
 
 ```python
 class ReActLoop:
@@ -355,7 +325,7 @@ class BaseAgent(ABC):
     def __init__(self, config: AgentConfig, event_bus: EventBus):
         self.config = config
         self.event_bus = event_bus
-        self.llm = ProviderFactory.create(config.llm)
+        self.llm = _create_llm(config.llm)
         self.tools = self._register_tools()
         self.react_loop = ReActLoop(
             llm=self.llm,
@@ -644,24 +614,23 @@ class OpenAIProvider(BaseLLMProvider):
         # Map function_call / tool_calls
         ...
 
-# llm/provider_factory.py
-class ProviderFactory:
-    _providers = {
-        "claude": ClaudeProvider,
-        "openai": OpenAIProvider,
-    }
-    
-    @classmethod
-    def create(cls, config: LLMConfig) -> BaseLLMProvider:
-        provider_cls = cls._providers[config.provider]
-        return provider_cls(
-            api_key=config.api_key,
-            model=config.model,
-            **(config.extra_kwargs or {})
-        )
+# agents/base.py -- provider factory inlined here (no separate provider_factory.py)
+_PROVIDERS: dict[str, type[BaseLLMProvider]] = {
+    "claude": ClaudeProvider,
+    "openai": OpenAIProvider,
+}
+
+def _create_llm(llm_config: LLMConfig) -> BaseLLMProvider:
+    provider_cls = _PROVIDERS[llm_config.provider]
+    return provider_cls(
+        api_key=llm_config.api_key,
+        model=llm_config.model,
+    )
 ```
 
 ### 2.5 macOS Platform Layer (`macos/`)
+
+**Screenshot** (`macos/screenshot.py`) and **Input Control** (`macos/input_control.py`) are the only two files in the macOS layer. The accessibility tree logic is inlined as private functions inside `agents/gui_agent.py` since it is only used there.
 
 **Screenshot** (`macos/screenshot.py`):
 
@@ -699,21 +668,16 @@ async def take_screenshot_native(region: tuple[int,int,int,int] | None = None) -
     return base64.b64encode(img_bytes).decode()
 ```
 
-**Accessibility Tree** (`macos/accessibility.py`):
+**Accessibility Tree** (private functions inside `agents/gui_agent.py`):
 
-Uses `pyobjc` to traverse the macOS AXUIElement tree. This is the critical capability for GUI Agent to understand what's on screen beyond raw pixels.
+Uses `pyobjc` to traverse the macOS AXUIElement tree. This logic is inlined directly in `gui_agent.py` as private functions since only the GUI Agent uses it.
 
 ```python
+# agents/gui_agent.py -- private a11y helpers
 import ApplicationServices
 from AppKit import NSWorkspace
 
-def get_accessibility_tree(app_name: str | None = None, max_depth: int = 5) -> str:
-    """
-    Get the accessibility tree of the focused (or specified) application.
-    Returns a structured text representation.
-    
-    Requires Accessibility permissions in System Preferences.
-    """
+def _get_accessibility_tree(app_name: str | None = None, max_depth: int = 5) -> str:
     if app_name:
         app = _find_app_by_name(app_name)
     else:
@@ -730,26 +694,21 @@ def get_accessibility_tree(app_name: str | None = None, max_depth: int = 5) -> s
     return "\n".join(tree_lines)
 
 def _traverse_element(element, depth: int, max_depth: int, lines: list[str]):
-    """Recursively traverse AXUIElement tree."""
     if depth > max_depth:
         return
     
     indent = "  " * depth
-    role = _get_attribute(element, "AXRole") or "Unknown"
-    title = _get_attribute(element, "AXTitle") or ""
-    value = _get_attribute(element, "AXValue") or ""
-    description = _get_attribute(element, "AXDescription") or ""
-    position = _get_attribute(element, "AXPosition")
-    size = _get_attribute(element, "AXSize")
+    role = _get_ax_attribute(element, "AXRole") or "Unknown"
+    title = _get_ax_attribute(element, "AXTitle") or ""
+    value = _get_ax_attribute(element, "AXValue") or ""
+    position = _get_ax_attribute(element, "AXPosition")
+    size = _get_ax_attribute(element, "AXSize")
     
-    # Format: [role] "title" value=... pos=(x,y) size=(w,h)
     parts = [f"{indent}[{role}]"]
     if title:
         parts.append(f'"{title}"')
     if value:
         parts.append(f"value={value!r}")
-    if description:
-        parts.append(f"desc={description!r}")
     if position and size:
         px, py = int(position.x), int(position.y)
         sw, sh = int(size.width), int(size.height)
@@ -757,8 +716,7 @@ def _traverse_element(element, depth: int, max_depth: int, lines: list[str]):
     
     lines.append(" ".join(parts))
     
-    # Recurse into children
-    children = _get_attribute(element, "AXChildren")
+    children = _get_ax_attribute(element, "AXChildren")
     if children:
         for child in children:
             _traverse_element(child, depth + 1, max_depth, lines)
@@ -1184,7 +1142,9 @@ MINIOTTER_PORT=8000
 
 ## 6. Chinese System Prompts
 
-### 6.1 Main Agent System Prompt (`prompts/main_agent.py`)
+System prompts are inlined as `_SYSTEM_PROMPT` constants directly inside each agent file — there is no separate `prompts/` directory.
+
+### 6.1 Main Agent System Prompt (`agents/main_agent.py`)
 
 ```python
 MAIN_AGENT_SYSTEM_PROMPT = """你是 MiniOtter 的主调度Agent。你的唯一职责是分析用户的任务，然后将任务路由到合适的子Agent执行。
@@ -1223,7 +1183,7 @@ MAIN_AGENT_SYSTEM_PROMPT = """你是 MiniOtter 的主调度Agent。你的唯一�
 """
 ```
 
-### 6.2 GUI Agent System Prompt (`prompts/gui_agent.py`)
+### 6.2 GUI Agent System Prompt (`agents/gui_agent.py`)
 
 ```python
 GUI_AGENT_SYSTEM_PROMPT = """你是 MiniOtter 的 GUI 操作Agent。你可以通过截图观察屏幕，并使用鼠标和键盘来操作 macOS 桌面上的应用程序。
@@ -1277,7 +1237,7 @@ GUI_AGENT_SYSTEM_PROMPT = """你是 MiniOtter 的 GUI 操作Agent。你可以通
 """
 ```
 
-### 6.3 Text Agent System Prompt (`prompts/text_agent.py`)
+### 6.3 Text Agent System Prompt (`agents/text_agent.py`)
 
 ```python
 TEXT_AGENT_SYSTEM_PROMPT = """你是 MiniOtter 的文本操作Agent。你可以执行bash命令、读写文件，完成不需要图形界面的自动化任务。
@@ -1317,7 +1277,7 @@ TEXT_AGENT_SYSTEM_PROMPT = """你是 MiniOtter 的文本操作Agent。你可以�
 """
 ```
 
-### 6.4 Extension Agent System Prompt (`prompts/extension_agent.py`)
+### 6.4 Extension Agent System Prompt (`agents/extension_agent.py`)
 
 ```python
 EXTENSION_AGENT_SYSTEM_PROMPT = """你是 MiniOtter 的扩展Agent。此Agent为未来功能预留。
@@ -1713,11 +1673,10 @@ macOS Retina displays have 2x pixel density. Screenshots captured at native reso
 ### 8.6 Extension Agent Pattern
 
 The Extension Agent is deliberately minimal. To add a new agent type in the future:
-1. Create a new agent class extending `BaseAgent`
-2. Define its tools in `tools/`
-3. Write its system prompt in `prompts/`
-4. Register it in `AgentRegistry`
-5. Add a new `route_to_*` tool to Main Agent
+1. Create a new agent file in `agents/` extending `BaseAgent`
+2. Define its tool classes and system prompt inline in that same file
+3. Register it in `AgentRegistry` (`agents/registry.py`)
+4. Add a new `route_to_*` tool to Main Agent (`agents/main_agent.py`)
 
 This requires no changes to the ReAct loop, WebSocket protocol, or frontend rendering logic -- everything is designed to be agent-type-agnostic.
 
@@ -1730,8 +1689,8 @@ Recommended implementation order:
 **Phase 1 -- Core Infrastructure (Backend)**
 1. Project skeleton: pyproject.toml, directory structure, config loading
 2. LLM provider abstraction (start with Claude only)
-3. ReAct loop engine (react/loop.py, types.py, history.py)
-4. Tool base class and registry
+3. ReAct loop engine (`react/engine.py`, `react/types.py`)
+4. Tool base class (`tools/base.py`)
 
 **Phase 2 -- Text Agent (Simplest Agent)**
 5. Text Agent tools (bash, file ops)
@@ -1777,8 +1736,8 @@ Recommended implementation order:
 
 ### Critical Files for Implementation
 
-- `/Users/yangguosheng/Desktop/work_code/MiniOtter/backend/miniotter/react/loop.py` -- The ReAct loop engine is the central execution mechanism that all four agents depend on; its design determines the entire agent execution model.
-- `/Users/yangguosheng/Desktop/work_code/MiniOtter/backend/miniotter/agents/base.py` -- The BaseAgent abstract class establishes the contract between the ReAct loop, tools, LLM providers, and event streaming; every agent type derives from it.
-- `/Users/yangguosheng/Desktop/work_code/MiniOtter/backend/miniotter/macos/accessibility.py` -- The a11y tree extraction via pyobjc is the most technically challenging piece and is what differentiates a capable GUI agent from a purely vision-based one.
-- `/Users/yangguosheng/Desktop/work_code/MiniOtter/backend/miniotter/app/ws.py` -- The WebSocket handler bridges backend agent execution to frontend real-time display; it must handle the EventBus subscription, serialization of ReAct steps (including base64 screenshots), and session management.
+- `/Users/yangguosheng/Desktop/work_code/MiniOtter/backend/miniotter/react/engine.py` -- The ReAct loop engine (`ReActLoop` + `_StepHistory`) is the central execution mechanism that all four agents depend on; its design determines the entire agent execution model.
+- `/Users/yangguosheng/Desktop/work_code/MiniOtter/backend/miniotter/agents/base.py` -- The BaseAgent abstract class establishes the contract between the ReAct loop, tools, LLM providers, and event streaming; every agent type derives from it. Also contains `_create_llm()` factory.
+- `/Users/yangguosheng/Desktop/work_code/MiniOtter/backend/miniotter/agents/gui_agent.py` -- Contains the GUI Agent, all GUI tool classes, and the a11y tree extraction logic (inlined as private functions). The a11y tree extraction via pyobjc is the most technically challenging piece and is what differentiates a capable GUI agent from a purely vision-based one.
+- `/Users/yangguosheng/Desktop/work_code/MiniOtter/backend/miniotter/app/server.py` -- The FastAPI app factory, which includes the WebSocket endpoint `/ws/stream` inlined directly. Bridges backend agent execution to frontend real-time display via EventBus subscription, serialization of ReAct steps, and session management.
 - `/Users/yangguosheng/Desktop/work_code/MiniOtter/frontend/src/pages/Chat/components/AgentStepCard.tsx` -- This is the most complex frontend component, responsible for rendering the multi-layered ReAct process (thought/action/observation with screenshots and coordinate overlays) in real-time as WebSocket events arrive.

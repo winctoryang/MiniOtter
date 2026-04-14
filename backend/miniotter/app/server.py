@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,11 +18,9 @@ from ..agents.registry import AgentRegistry
 from ..config import AppConfig, load_config
 from .event_bus import EventBus
 from .routes import chat, config as config_routes, health, tasks
-from .ws import websocket_stream
 
 logger = logging.getLogger(__name__)
 
-# 前端构建产物目录
 STATIC_DIR = Path(__file__).parent.parent / "static"
 
 
@@ -49,27 +50,52 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    # API routes
     app.include_router(chat.router, prefix="/api")
     app.include_router(tasks.router, prefix="/api")
     app.include_router(config_routes.router, prefix="/api")
     app.include_router(health.router, prefix="/api")
 
-    # WebSocket
     @app.websocket("/ws/stream")
     async def ws_endpoint(websocket: WebSocket):
-        await websocket_stream(websocket, app.state.event_bus)
+        await websocket.accept()
+        session_id = websocket.query_params.get("session_id", "default")
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=1000)
+        app.state.event_bus.subscribe(session_id, queue)
+        try:
+            while True:
+                event = await queue.get()
+                await websocket.send_json(_clean_event(event))
+        except WebSocketDisconnect:
+            logger.info("WebSocket disconnected for session %s", session_id)
+        except Exception:
+            logger.exception("WebSocket error for session %s", session_id)
+        finally:
+            app.state.event_bus.unsubscribe(session_id, queue)
 
-    # 前端静态文件（构建后）
     if STATIC_DIR.exists():
         app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 
         @app.get("/{full_path:path}")
         async def serve_spa(full_path: str):
-            """SPA fallback: 所有非 API/WS 请求返回 index.html"""
             file_path = STATIC_DIR / full_path
             if file_path.is_file():
                 return FileResponse(str(file_path))
             return FileResponse(str(STATIC_DIR / "index.html"))
 
     return app
+
+
+def _clean_event(event: dict[str, Any]) -> dict[str, Any]:
+    clean = {}
+    for k, v in event.items():
+        if k.startswith("_"):
+            continue
+        if isinstance(v, dict):
+            clean[k] = _clean_event(v)
+        else:
+            try:
+                json.dumps(v)
+                clean[k] = v
+            except (TypeError, ValueError):
+                clean[k] = str(v)
+    return clean

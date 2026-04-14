@@ -116,12 +116,18 @@ The GUI Agent requires the following system permissions:
 MiniOtter/
 ├── backend/miniotter/
 │   ├── __main__.py      # Entry: pywebview desktop window + background FastAPI server
-│   ├── agents/          # 4 agents (main / gui / text / extension)
+│   ├── agents/          # 4 agents — each file contains agent class + its tools + system prompt
+│   │   ├── base.py      #   BaseAgent + LLM provider factory
+│   │   ├── gui_agent.py #   GUI Agent + mouse/keyboard/screenshot/a11y tools
+│   │   ├── text_agent.py#   Text Agent + bash/file/clipboard tools
+│   │   ├── main_agent.py#   Main Agent (router) + RouteToAgent tool
+│   │   └── extension_agent.py
 │   ├── react/           # ReAct Loop engine
-│   ├── tools/           # Tool definitions (gui: mouse/keyboard/screenshot/a11y · text: bash/file/clipboard)
+│   │   ├── engine.py    #   ReActLoop + step history (core loop)
+│   │   └── types.py     #   Thought / Action / Observation / ReActStep / TaskResult
+│   ├── tools/base.py    # BaseTool + TaskComplete + TaskFailed
 │   ├── llm/             # LLM provider abstraction (Claude / OpenAI)
-│   ├── macos/           # macOS platform layer (screenshot / a11y / input / permissions)
-│   ├── prompts/         # System prompts (Chinese)
+│   ├── macos/           # macOS platform layer (screenshot / a11y / input control)
 │   └── app/             # FastAPI server + WebSocket + REST API + static files
 ├── frontend/src/
 │   ├── pages/Chat/      # Chat page (message list + ReAct step cards + screenshot annotations)

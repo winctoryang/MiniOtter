@@ -1,4 +1,4 @@
-"""Core ReAct loop implementation."""
+"""ReAct loop engine — history manager and reasoning loop."""
 
 from __future__ import annotations
 
@@ -10,12 +10,57 @@ from typing import Any
 from ..exceptions import TaskCancelledError
 from ..llm.base import BaseLLMProvider
 from ..tools.base import BaseTool
-from .history import StepHistory
 from .types import Action, Observation, ReActStep, TaskResult, Thought
 
 logger = logging.getLogger(__name__)
 
 _TERMINAL_TOOLS = {"task_complete", "task_failed"}
+
+
+class _StepHistory:
+    def __init__(self) -> None:
+        self._messages: list[dict[str, Any]] = []
+        self._steps: list[ReActStep] = []
+
+    @property
+    def steps(self) -> list[ReActStep]:
+        return list(self._steps)
+
+    @property
+    def messages(self) -> list[dict[str, Any]]:
+        return list(self._messages)
+
+    def add_user_message(self, text: str, images: list[str] | None = None) -> None:
+        if images:
+            content: list[dict] = []
+            for img in images:
+                content.append({
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": "image/png", "data": img},
+                })
+            content.append({"type": "text", "text": text})
+            self._messages.append({"role": "user", "content": content})
+        else:
+            self._messages.append({"role": "user", "content": text})
+
+    def add_assistant_response(self, response_data: dict[str, Any]) -> None:
+        self._messages.append(response_data)
+
+    def add_tool_results(self, tool_results: list[dict[str, Any]]) -> None:
+        self._messages.append({"role": "user", "content": tool_results})
+
+    def add_step(self, step: ReActStep) -> None:
+        self._steps.append(step)
+
+    def inject_images(self, images: list[str]) -> None:
+        content: list[dict] = []
+        for img in images:
+            content.append({
+                "type": "image",
+                "source": {"type": "base64", "media_type": "image/png", "data": img},
+            })
+        content.append({"type": "text", "text": "这是当前屏幕截图。请根据截图内容决定下一步操作。"})
+        self._messages.append({"role": "user", "content": content})
 
 
 class ReActLoop:
@@ -38,7 +83,7 @@ class ReActLoop:
         self.system_prompt = system_prompt
         self.max_steps = max_steps
         self.on_step = on_step
-        self.history = StepHistory()
+        self.history = _StepHistory()
         self._cancelled = False
 
     def cancel(self) -> None:
@@ -116,11 +161,7 @@ class ReActLoop:
                         summary = obs.result.get("message", obs.result.get("reason", ""))
                     elif isinstance(obs.result, str):
                         summary = obs.result
-                    return TaskResult(
-                        success=success,
-                        summary=summary,
-                        steps=self.history.steps,
-                    )
+                    return TaskResult(success=success, summary=summary, steps=self.history.steps)
 
         return TaskResult(success=False, summary="达到最大步数限制", steps=self.history.steps)
 
