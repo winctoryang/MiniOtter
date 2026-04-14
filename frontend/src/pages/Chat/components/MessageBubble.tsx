@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Message } from '../../../api/types';
-import { AgentStepCard } from './AgentStepCard';
+import { AgentTimeline } from './AgentTimeline';
 
 interface Props {
   message: Message;
@@ -31,7 +31,14 @@ export const MessageBubble: React.FC<Props> = ({ message }) => {
           {isUser ? '你' : isSystem ? '系统' : 'MiniOtter'}
         </div>
 
-        {/* Text content */}
+        {/* Agent timeline (shown before final result) */}
+        {message.executions && message.executions.length > 0 && (
+          <div style={{ marginBottom: message.content ? 8 : 0 }}>
+            <AgentTimeline executions={message.executions} />
+          </div>
+        )}
+
+        {/* Text content (final result, shown at bottom) */}
         {message.content && (
           <div style={{
             padding: '10px 16px',
@@ -44,19 +51,6 @@ export const MessageBubble: React.FC<Props> = ({ message }) => {
             whiteSpace: 'pre-wrap',
           }}>
             {message.content}
-          </div>
-        )}
-
-        {/* Agent steps */}
-        {message.steps && message.steps.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            {message.steps.map((step, i) => (
-              <AgentStepCard
-                key={`${step.agentType}-${step.stepNum}`}
-                step={step}
-                isLatest={i === message.steps!.length - 1}
-              />
-            ))}
           </div>
         )}
       </div>

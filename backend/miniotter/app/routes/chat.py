@@ -52,7 +52,15 @@ async def _run_agent(
     task_id: str, session_id: str, message: str,
     agent_registry: AgentRegistry, event_bus: EventBus, task_store: dict[str, Any],
 ) -> None:
+    seen_agent_types: set[str] = set()
+
     async def on_step(agent_type: str, step: ReActStep, phase: str, step_num: int) -> None:
+        # Emit agent_activated the first time a sub-agent produces a step
+        if agent_type not in seen_agent_types:
+            seen_agent_types.add(agent_type)
+            if agent_type != "main":  # main is emitted explicitly below
+                await event_bus.emit(session_id, {"type": "agent_activated", "task_id": task_id, "agent_type": agent_type})
+
         base = {"task_id": task_id, "agent_type": agent_type, "step_num": step_num, "phase": phase}
 
         if phase in ("acting", "observed"):

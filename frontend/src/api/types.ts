@@ -54,12 +54,25 @@ export interface AgentStep {
   phase: 'thinking' | 'acting' | 'observed' | 'complete';
 }
 
+/** One continuous run of a single agent, with ordered steps. */
+export interface AgentExecution {
+  /** Unique index in the invocation order (0 = main agent, 1 = first sub-agent, …) */
+  invocationIndex: number;
+  agentType: string;
+  /** Which invocationIndex called this agent (undefined for the root main agent) */
+  callerIndex?: number;
+  steps: AgentStep[];
+  /** Whether the agent has finished and returned to its caller */
+  returned: boolean;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
   agentType?: string;
-  steps?: AgentStep[];
+  /** Ordered list of agent executions (replaces flat steps[]) */
+  executions?: AgentExecution[];
   taskId?: string;
 }

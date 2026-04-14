@@ -25,6 +25,7 @@ uv.lock
 # Node
 node_modules/
 frontend/dist/
+*.tsbuildinfo
 
 # 前端构建产物（构建时生成到后端目录）
 backend/miniotter/static/

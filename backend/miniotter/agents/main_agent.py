@@ -58,6 +58,7 @@ class RouteToAgent(BaseTool):
         self.description = description
         self._target_type = target_agent_type
         self._registry = agent_registry
+        self._active_agent: Any = None  # currently running sub-agent
         self.parameters = [
             ToolParameter(name="task_description", type="string", description="详细的任务描述，包含足够的上下文信息让子Agent理解和执行任务"),
             ToolParameter(name="context", type="string", description="可选的额外上下文信息，如之前步骤的结果", required=False),
@@ -67,8 +68,16 @@ class RouteToAgent(BaseTool):
         task_description = kwargs["task_description"]
         context = kwargs.get("context", "")
         agent = self._registry.create(self._target_type)
-        result = await agent.run(task_description, {"context": context})
+        self._active_agent = agent
+        try:
+            result = await agent.run(task_description, {"context": context})
+        finally:
+            self._active_agent = None
         return {"success": result.success, "summary": result.summary, "steps_count": len(result.steps)}
+
+    def cancel_active(self) -> None:
+        if self._active_agent is not None:
+            self._active_agent.cancel()
 
 
 class MainAgent(BaseAgent):
@@ -97,3 +106,10 @@ class MainAgent(BaseAgent):
 
     def _get_max_steps(self) -> int:
         return self.config.main_agent.max_steps
+
+    def cancel(self) -> None:
+        super().cancel()
+        # Also cancel whichever sub-agent is currently running
+        for tool in self.tools:
+            if isinstance(tool, RouteToAgent):
+                tool.cancel_active()

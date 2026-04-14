@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AgentStep, Message, WSMessage } from '../api/types';
+import type { AgentExecution, AgentStep, Message, WSMessage } from '../api/types';
 import { sendMessage, cancelTask } from '../api/chat';
 
 interface ChatStore {
@@ -57,7 +57,6 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set((state) => {
       const messages = [...state.messages];
 
-      // Find or create the assistant message for this task
       let assistantMsg = messages.find(
         (m) => m.role === 'assistant' && m.taskId === msg.task_id
       );
@@ -69,7 +68,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           content: '',
           timestamp: Date.now(),
           taskId: msg.task_id,
-          steps: [],
+          executions: [],
         };
         messages.push(assistantMsg);
       }
@@ -77,19 +76,41 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       if (!assistantMsg) return { messages };
 
       switch (msg.type) {
-        case 'agent_activated':
-          assistantMsg.agentType = msg.agent_type;
+        case 'agent_activated': {
+          if (!assistantMsg.executions) assistantMsg.executions = [];
+          const agentType = msg.agent_type || 'main';
+
+          // Skip if there's already a non-returned execution for this agent type
+          const alreadyActive = assistantMsg.executions.some(
+            (e) => e.agentType === agentType && !e.returned
+          );
+          if (alreadyActive) break;
+
+          const newIndex = assistantMsg.executions.length;
+          // The caller is the last active (not-yet-returned) execution
+          const callerIndex = _findActiveCallerIndex(assistantMsg.executions);
+
+          assistantMsg.executions.push({
+            invocationIndex: newIndex,
+            agentType,
+            callerIndex,
+            steps: [],
+            returned: false,
+          });
           break;
+        }
 
         case 'thought': {
-          const step = _findOrCreateStep(assistantMsg, msg);
+          const exec = _findOrCreateExecution(assistantMsg, msg);
+          const step = _findOrCreateStep(exec, msg);
           step.thought = msg.content;
           step.phase = 'thinking';
           break;
         }
 
         case 'action': {
-          const step = _findOrCreateStep(assistantMsg, msg);
+          const exec = _findOrCreateExecution(assistantMsg, msg);
+          const step = _findOrCreateStep(exec, msg);
           step.actions.push({
             toolName: msg.tool_name || '',
             toolArgs: (msg.tool_args || {}) as Record<string, unknown>,
@@ -99,17 +120,26 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         }
 
         case 'observation': {
-          const step = _findOrCreateStep(assistantMsg, msg);
+          const exec = _findOrCreateExecution(assistantMsg, msg);
+          const step = _findOrCreateStep(exec, msg);
           step.observations.push({
             result: msg.result,
             isError: msg.is_error || false,
             screenshot: msg.screenshot,
           });
           step.phase = 'observed';
+
+          // If this was a route_to_* action, mark the sub-agent as returned
+          // when the observation arrives on the main agent
+          _markReturnedSubAgents(assistantMsg, exec);
           break;
         }
 
         case 'task_complete':
+          // Mark all executions as returned
+          if (assistantMsg.executions) {
+            assistantMsg.executions.forEach((e) => (e.returned = true));
+          }
           assistantMsg.content = msg.summary || '任务完成';
           return { messages, isRunning: false, currentTaskId: null };
 
@@ -127,26 +157,66 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   clearMessages: () => set({ messages: [], currentTaskId: null, isRunning: false }),
 }));
 
-function _findOrCreateStep(msg: Message, wsMsg: WSMessage): AgentStep {
-  if (!msg.steps) msg.steps = [];
+/** Find the last execution that is still active (not yet returned) — that's the caller. */
+function _findActiveCallerIndex(executions: AgentExecution[]): number | undefined {
+  for (let i = executions.length - 1; i >= 0; i--) {
+    if (!executions[i].returned) return i;
+  }
+  return undefined;
+}
 
-  const stepNum = wsMsg.step_num ?? 0;
+/** Find the execution for the current agent_type in the WS message.
+ *  Never creates a new execution — steps must always belong to an already-activated agent. */
+function _findOrCreateExecution(msg: Message, wsMsg: WSMessage): AgentExecution {
+  if (!msg.executions) msg.executions = [];
   const agentType = wsMsg.agent_type || '';
 
-  let step = msg.steps.find(
-    (s) => s.stepNum === stepNum && s.agentType === agentType
-  );
+  // Find the last non-returned execution matching this agent type
+  for (let i = msg.executions.length - 1; i >= 0; i--) {
+    if (msg.executions[i].agentType === agentType && !msg.executions[i].returned) {
+      return msg.executions[i];
+    }
+  }
 
+  // Fallback: auto-create the execution if agent_activated was somehow missed
+  // (e.g. race condition). Attach it as a child of the last active execution.
+  const callerIndex = _findActiveCallerIndex(msg.executions);
+  const exec: AgentExecution = {
+    invocationIndex: msg.executions.length,
+    agentType,
+    callerIndex,
+    steps: [],
+    returned: false,
+  };
+  msg.executions.push(exec);
+  return exec;
+}
+
+function _findOrCreateStep(exec: AgentExecution, wsMsg: WSMessage): AgentStep {
+  const stepNum = wsMsg.step_num ?? 0;
+
+  let step = exec.steps.find((s) => s.stepNum === stepNum);
   if (!step) {
     step = {
       stepNum,
-      agentType,
+      agentType: exec.agentType,
       actions: [],
       observations: [],
       phase: 'thinking',
     };
-    msg.steps.push(step);
+    exec.steps.push(step);
   }
-
   return step;
+}
+
+/** When the main agent receives an observation for a route_to_* call,
+ *  the corresponding sub-agent execution has finished — mark it returned. */
+function _markReturnedSubAgents(msg: Message, callerExec: AgentExecution) {
+  if (!msg.executions) return;
+  // Any execution whose callerIndex is callerExec.invocationIndex and is not yet returned
+  msg.executions.forEach((exec) => {
+    if (exec.callerIndex === callerExec.invocationIndex && !exec.returned) {
+      exec.returned = true;
+    }
+  });
 }
